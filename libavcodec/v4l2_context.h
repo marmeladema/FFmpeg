@@ -33,6 +33,7 @@
 #include "codec_id.h"
 #include "packet.h"
 #include "v4l2_buffers.h"
+#include "v4l2_device.h"
 
 typedef struct V4L2Context {
     /**
@@ -109,7 +110,7 @@ int ff_v4l2_context_init(V4L2Context* ctx);
  * @param[in] ctx A pointer to a V4L2Context. See V4L2Context description for required variables.
  * @return 0 in case of success, a negative value representing the error otherwise.
  */
-int ff_v4l2_context_set_format(V4L2Context* ctx);
+int ff_v4l2_context_set_format(V4L2DeviceVideo *dev, V4L2Context* ctx);
 
 /**
  * Queries the driver for a valid v4l2 format and copies it to the context.
@@ -118,7 +119,7 @@ int ff_v4l2_context_set_format(V4L2Context* ctx);
  * @param[in] probe Probe only and ignore changes to the format.
  * @return 0 in case of success, a negative value representing the error otherwise.
  */
-int ff_v4l2_context_get_format(V4L2Context* ctx, int probe);
+int ff_v4l2_context_get_format(V4L2DeviceVideo* dev, V4L2Context* ctx, int probe);
 
 /**
  * Releases a V4L2Context.

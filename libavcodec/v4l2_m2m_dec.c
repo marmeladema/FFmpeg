@@ -56,7 +56,7 @@ static int v4l2_try_start(AVCodecContext *avctx)
 
     /* 2. get the capture format */
     capture->format.type = capture->type;
-    ret = ioctl(s->fd, VIDIOC_G_FMT, &capture->format);
+    ret = ioctl(s->device.fd, VIDIOC_G_FMT, &capture->format);
     if (ret) {
         av_log(avctx, AV_LOG_WARNING, "VIDIOC_G_FMT ioctl\n");
         return ret;
@@ -70,9 +70,9 @@ static int v4l2_try_start(AVCodecContext *avctx)
     selection.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     selection.r.height = avctx->coded_height;
     selection.r.width = avctx->coded_width;
-    ret = ioctl(s->fd, VIDIOC_S_SELECTION, &selection);
+    ret = ioctl(s->device.fd, VIDIOC_S_SELECTION, &selection);
     if (!ret) {
-        ret = ioctl(s->fd, VIDIOC_G_SELECTION, &selection);
+        ret = ioctl(s->device.fd, VIDIOC_G_SELECTION, &selection);
         if (ret) {
             av_log(avctx, AV_LOG_WARNING, "VIDIOC_G_SELECTION ioctl\n");
         } else {
@@ -113,7 +113,7 @@ static int v4l2_prepare_decoder(V4L2m2mContext *s)
      */
     memset(&sub, 0, sizeof(sub));
     sub.type = V4L2_EVENT_SOURCE_CHANGE;
-    ret = ioctl(s->fd, VIDIOC_SUBSCRIBE_EVENT, &sub);
+    ret = ioctl(s->device.fd, VIDIOC_SUBSCRIBE_EVENT, &sub);
     if ( ret < 0) {
         if (output->height == 0 || output->width == 0) {
             av_log(s->avctx, AV_LOG_ERROR,
@@ -125,7 +125,7 @@ static int v4l2_prepare_decoder(V4L2m2mContext *s)
 
     memset(&sub, 0, sizeof(sub));
     sub.type = V4L2_EVENT_EOS;
-    ret = ioctl(s->fd, VIDIOC_SUBSCRIBE_EVENT, &sub);
+    ret = ioctl(s->device.fd, VIDIOC_SUBSCRIBE_EVENT, &sub);
     if (ret < 0)
         av_log(s->avctx, AV_LOG_WARNING,
                "the v4l2 driver does not support end of stream VIDIOC_SUBSCRIBE_EVENT\n");

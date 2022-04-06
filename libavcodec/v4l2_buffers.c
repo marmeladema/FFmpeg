@@ -504,7 +504,7 @@ int ff_v4l2_buffer_initialize(V4L2Buffer* avbuf, int index)
         avbuf->buf.m.planes = avbuf->planes;
     }
 
-    ret = ioctl(buf_to_m2mctx(avbuf)->fd, VIDIOC_QUERYBUF, &avbuf->buf);
+    ret = ioctl(buf_to_m2mctx(avbuf)->device.fd, VIDIOC_QUERYBUF, &avbuf->buf);
     if (ret < 0)
         return AVERROR(errno);
 
@@ -528,12 +528,12 @@ int ff_v4l2_buffer_initialize(V4L2Buffer* avbuf, int index)
             avbuf->plane_info[i].length = avbuf->buf.m.planes[i].length;
             avbuf->plane_info[i].mm_addr = mmap(NULL, avbuf->buf.m.planes[i].length,
                                            PROT_READ | PROT_WRITE, MAP_SHARED,
-                                           buf_to_m2mctx(avbuf)->fd, avbuf->buf.m.planes[i].m.mem_offset);
+                                           buf_to_m2mctx(avbuf)->device.fd, avbuf->buf.m.planes[i].m.mem_offset);
         } else {
             avbuf->plane_info[i].length = avbuf->buf.length;
             avbuf->plane_info[i].mm_addr = mmap(NULL, avbuf->buf.length,
                                           PROT_READ | PROT_WRITE, MAP_SHARED,
-                                          buf_to_m2mctx(avbuf)->fd, avbuf->buf.m.offset);
+                                          buf_to_m2mctx(avbuf)->device.fd, avbuf->buf.m.offset);
         }
 
         if (avbuf->plane_info[i].mm_addr == MAP_FAILED)
@@ -563,7 +563,7 @@ int ff_v4l2_buffer_enqueue(V4L2Buffer* avbuf)
 
     avbuf->buf.flags = avbuf->flags;
 
-    ret = ioctl(buf_to_m2mctx(avbuf)->fd, VIDIOC_QBUF, &avbuf->buf);
+    ret = ioctl(buf_to_m2mctx(avbuf)->device.fd, VIDIOC_QBUF, &avbuf->buf);
     if (ret < 0)
         return AVERROR(errno);
 

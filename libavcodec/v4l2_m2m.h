@@ -31,6 +31,7 @@
 
 #include "libavcodec/avcodec.h"
 #include "v4l2_context.h"
+#include "v4l2_device.h"
 
 #define container_of(ptr, type, member) ({ \
         const __typeof__(((type *)0)->member ) *__mptr = (ptr); \
@@ -41,8 +42,7 @@
         OFFSET(num_output_buffers), AV_OPT_TYPE_INT, { .i64 = 16 }, 6, INT_MAX, FLAGS }
 
 typedef struct V4L2m2mContext {
-    char devname[PATH_MAX];
-    int fd;
+    V4L2DeviceVideo device;
 
     /* the codec context queues */
     V4L2Context capture;

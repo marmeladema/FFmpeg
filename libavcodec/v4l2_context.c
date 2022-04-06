@@ -72,7 +72,7 @@ static AVRational v4l2_get_sar(V4L2Context *ctx)
     memset(&cropcap, 0, sizeof(cropcap));
     cropcap.type = ctx->type;
 
-    ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_CROPCAP, &cropcap);
+    ret = ioctl(ctx_to_m2mctx(ctx)->device.fd, VIDIOC_CROPCAP, &cropcap);
     if (ret)
         return sar;
 
@@ -161,7 +161,7 @@ static int v4l2_start_decode(V4L2Context *ctx)
     };
     int ret;
 
-    ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_DECODER_CMD, &cmd);
+    ret = ioctl(ctx_to_m2mctx(ctx)->device.fd, VIDIOC_DECODER_CMD, &cmd);
     if (ret)
         return AVERROR(errno);
 
@@ -180,7 +180,7 @@ static int v4l2_handle_event(V4L2Context *ctx)
     struct v4l2_event evt = { 0 };
     int ret;
 
-    ret = ioctl(s->fd, VIDIOC_DQEVENT, &evt);
+    ret = ioctl(s->device.fd, VIDIOC_DQEVENT, &evt);
     if (ret < 0) {
         av_log(logger(ctx), AV_LOG_ERROR, "%s VIDIOC_DQEVENT\n", ctx->name);
         return 0;
@@ -194,7 +194,7 @@ static int v4l2_handle_event(V4L2Context *ctx)
     if (evt.type != V4L2_EVENT_SOURCE_CHANGE)
         return 0;
 
-    ret = ioctl(s->fd, VIDIOC_G_FMT, &cap_fmt);
+    ret = ioctl(s->device.fd, VIDIOC_G_FMT, &cap_fmt);
     if (ret) {
         av_log(logger(ctx), AV_LOG_ERROR, "%s VIDIOC_G_FMT\n", s->capture.name);
         return 0;
@@ -234,7 +234,7 @@ static int v4l2_stop_decode(V4L2Context *ctx)
     };
     int ret;
 
-    ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_DECODER_CMD, &cmd);
+    ret = ioctl(ctx_to_m2mctx(ctx)->device.fd, VIDIOC_DECODER_CMD, &cmd);
     if (ret) {
         /* DECODER_CMD is optional */
         if (errno == ENOTTY)
@@ -254,7 +254,7 @@ static int v4l2_stop_encode(V4L2Context *ctx)
     };
     int ret;
 
-    ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_ENCODER_CMD, &cmd);
+    ret = ioctl(ctx_to_m2mctx(ctx)->device.fd, VIDIOC_ENCODER_CMD, &cmd);
     if (ret) {
         /* ENCODER_CMD is optional */
         if (errno == ENOTTY)
@@ -273,7 +273,7 @@ static V4L2Buffer* v4l2_dequeue_v4l2buf(V4L2Context *ctx, int timeout)
     V4L2Buffer *avbuf;
     struct pollfd pfd = {
         .events =  POLLIN | POLLRDNORM | POLLPRI | POLLOUT | POLLWRNORM, /* default blocking capture */
-        .fd = ctx_to_m2mctx(ctx)->fd,
+        .fd = ctx_to_m2mctx(ctx)->device.fd,
     };
     int i, ret;
 
@@ -380,7 +380,7 @@ dequeue:
             buf.m.planes = planes;
         }
 
-        ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_DQBUF, &buf);
+        ret = ioctl(ctx_to_m2mctx(ctx)->device.fd, VIDIOC_DQBUF, &buf);
         if (ret) {
             if (errno != EAGAIN) {
                 ctx->done = 1;
@@ -456,10 +456,10 @@ static int v4l2_release_buffers(V4L2Context* ctx)
         }
     }
 
-    return ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_REQBUFS, &req);
+    return ioctl(ctx_to_m2mctx(ctx)->device.fd, VIDIOC_REQBUFS, &req);
 }
 
-static inline int v4l2_try_raw_format(V4L2Context* ctx, enum AVPixelFormat pixfmt)
+static inline int v4l2_try_raw_format(V4L2DeviceVideo *dev, V4L2Context* ctx, enum AVPixelFormat pixfmt)
 {
     struct v4l2_format *fmt = &ctx->format;
     uint32_t v4l2_fmt;
@@ -476,14 +476,14 @@ static inline int v4l2_try_raw_format(V4L2Context* ctx, enum AVPixelFormat pixfm
 
     fmt->type = ctx->type;
 
-    ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_TRY_FMT, fmt);
+    ret = ioctl(dev->fd, VIDIOC_TRY_FMT, fmt);
     if (ret)
         return AVERROR(EINVAL);
 
     return 0;
 }
 
-static int v4l2_get_raw_format(V4L2Context* ctx, enum AVPixelFormat *p)
+static int v4l2_get_raw_format(V4L2DeviceVideo *dev, V4L2Context* ctx, enum AVPixelFormat *p)
 {
     enum AVPixelFormat pixfmt = ctx->av_pix_fmt;
     struct v4l2_fmtdesc fdesc;
@@ -493,18 +493,18 @@ static int v4l2_get_raw_format(V4L2Context* ctx, enum AVPixelFormat *p)
     fdesc.type = ctx->type;
 
     if (pixfmt != AV_PIX_FMT_NONE) {
-        ret = v4l2_try_raw_format(ctx, pixfmt);
+        ret = v4l2_try_raw_format(dev, ctx, pixfmt);
         if (!ret)
             return 0;
     }
 
     for (;;) {
-        ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_ENUM_FMT, &fdesc);
+        ret = ioctl(dev->fd, VIDIOC_ENUM_FMT, &fdesc);
         if (ret)
             return AVERROR(EINVAL);
 
         pixfmt = ff_v4l2_format_v4l2_to_avfmt(fdesc.pixelformat, AV_CODEC_ID_RAWVIDEO);
-        ret = v4l2_try_raw_format(ctx, pixfmt);
+        ret = v4l2_try_raw_format(dev, ctx, pixfmt);
         if (ret){
             fdesc.index++;
             continue;
@@ -518,7 +518,7 @@ static int v4l2_get_raw_format(V4L2Context* ctx, enum AVPixelFormat *p)
     return AVERROR(EINVAL);
 }
 
-static int v4l2_get_coded_format(V4L2Context* ctx, uint32_t *p)
+static int v4l2_get_coded_format(V4L2DeviceVideo *dev, V4L2Context* ctx, uint32_t *p)
 {
     struct v4l2_fmtdesc fdesc;
     uint32_t v4l2_fmt;
@@ -526,17 +526,27 @@ static int v4l2_get_coded_format(V4L2Context* ctx, uint32_t *p)
 
     /* translate to a valid v4l2 format */
     v4l2_fmt = ff_v4l2_format_avcodec_to_v4l2(ctx->av_codec_id);
-    if (!v4l2_fmt)
+    if (!v4l2_fmt) {
+        av_log(logger(ctx), AV_LOG_ERROR, "Could not get v4l2 format from avcodec %d\n", ctx->av_codec_id);
         return AVERROR(EINVAL);
+    } else {
+        av_log(logger(ctx), AV_LOG_TRACE, "Requested v4l2 format %d\n", v4l2_fmt);
+    }
 
     /* check if the driver supports this format */
     memset(&fdesc, 0, sizeof(fdesc));
     fdesc.type = ctx->type;
 
     for (;;) {
-        ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_ENUM_FMT, &fdesc);
-        if (ret)
-            return AVERROR(EINVAL);
+        av_log(logger(ctx), AV_LOG_TRACE, "Trying to retrieve format for index %d with type %d\n", fdesc.index, ctx->type);
+        ret = ioctl(dev->fd, VIDIOC_ENUM_FMT, &fdesc);
+        if (ret) {
+            if (errno != EINVAL) {
+                av_log(logger(ctx), AV_LOG_ERROR, "VIDIOC_ENUM_FMT for index %d failed: %s (%d)\n", fdesc.index, av_err2str(AVERROR(errno)), errno);
+            }
+            return AVERROR(errno);
+        }
+        av_log(logger(ctx), AV_LOG_TRACE, "Retrieved v4l2 format %s (%d)\n", fdesc.description, fdesc.pixelformat);
 
         if (fdesc.pixelformat == v4l2_fmt)
             break;
@@ -560,7 +570,7 @@ int ff_v4l2_context_set_status(V4L2Context* ctx, uint32_t cmd)
     int type = ctx->type;
     int ret;
 
-    ret = ioctl(ctx_to_m2mctx(ctx)->fd, cmd, &type);
+    ret = ioctl(ctx_to_m2mctx(ctx)->device.fd, cmd, &type);
     if (ret < 0)
         return AVERROR(errno);
 
@@ -659,15 +669,19 @@ int ff_v4l2_context_dequeue_packet(V4L2Context* ctx, AVPacket* pkt)
     return ff_v4l2_buffer_buf_to_avpkt(pkt, avbuf);
 }
 
-int ff_v4l2_context_get_format(V4L2Context* ctx, int probe)
+int ff_v4l2_context_get_format(V4L2DeviceVideo *dev, V4L2Context* ctx, int probe)
 {
     struct v4l2_format_update fmt = { 0 };
     int ret;
 
     if  (ctx->av_codec_id == AV_CODEC_ID_RAWVIDEO) {
-        ret = v4l2_get_raw_format(ctx, &fmt.av_fmt);
-        if (ret)
+        ret = v4l2_get_raw_format(dev, ctx, &fmt.av_fmt);
+        if (ret)  {
+            av_log(logger(ctx), AV_LOG_ERROR, "Could not get raw format\n");
             return ret;
+        } else {
+            av_log(logger(ctx), AV_LOG_DEBUG, "Retrieved raw format %d\n", fmt.av_fmt);
+        }
 
         fmt.update_avfmt = !probe;
         v4l2_save_to_context(ctx, &fmt);
@@ -676,19 +690,23 @@ int ff_v4l2_context_get_format(V4L2Context* ctx, int probe)
         return ret;
     }
 
-    ret = v4l2_get_coded_format(ctx, &fmt.v4l2_fmt);
-    if (ret)
+    ret = v4l2_get_coded_format(dev, ctx, &fmt.v4l2_fmt);
+    if (ret) {
+        av_log(logger(ctx), AV_LOG_ERROR, "Could not get v4l2 format\n");
         return ret;
+    } else {
+        av_log(logger(ctx), AV_LOG_DEBUG, "Retrieved v4l2 format %d\n", fmt.v4l2_fmt);
+    }
 
     fmt.update_v4l2 = 1;
     v4l2_save_to_context(ctx, &fmt);
 
-    return ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_TRY_FMT, &ctx->format);
+    return ioctl(dev->fd, VIDIOC_TRY_FMT, &ctx->format);
 }
 
-int ff_v4l2_context_set_format(V4L2Context* ctx)
+int ff_v4l2_context_set_format(V4L2DeviceVideo *dev, V4L2Context* ctx)
 {
-    return ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_S_FMT, &ctx->format);
+    return ioctl(dev->fd, VIDIOC_S_FMT, &ctx->format);
 }
 
 void ff_v4l2_context_release(V4L2Context* ctx)
@@ -716,7 +734,7 @@ int ff_v4l2_context_init(V4L2Context* ctx)
         return AVERROR_PATCHWELCOME;
     }
 
-    ret = ioctl(s->fd, VIDIOC_G_FMT, &ctx->format);
+    ret = ioctl(s->device.fd, VIDIOC_G_FMT, &ctx->format);
     if (ret)
         av_log(logger(ctx), AV_LOG_ERROR, "%s VIDIOC_G_FMT failed\n", ctx->name);
 
@@ -724,7 +742,7 @@ int ff_v4l2_context_init(V4L2Context* ctx)
     req.count = ctx->num_buffers;
     req.memory = V4L2_MEMORY_MMAP;
     req.type = ctx->type;
-    ret = ioctl(s->fd, VIDIOC_REQBUFS, &req);
+    ret = ioctl(s->device.fd, VIDIOC_REQBUFS, &req);
     if (ret < 0) {
         av_log(logger(ctx), AV_LOG_ERROR, "%s VIDIOC_REQBUFS failed: %s\n", ctx->name, strerror(errno));
         return AVERROR(errno);

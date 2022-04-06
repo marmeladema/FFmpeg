@@ -46,7 +46,7 @@ static inline void v4l2_set_timeperframe(V4L2m2mContext *s, unsigned int num, un
     parm.parm.output.timeperframe.denominator = den;
     parm.parm.output.timeperframe.numerator = num;
 
-    if (ioctl(s->fd, VIDIOC_S_PARM, &parm) < 0)
+    if (ioctl(s->device.fd, VIDIOC_S_PARM, &parm) < 0)
         av_log(s->avctx, AV_LOG_WARNING, "Failed to set timeperframe");
 }
 
@@ -64,7 +64,7 @@ static inline void v4l2_set_ext_ctrl(V4L2m2mContext *s, unsigned int id, signed 
     ctrl.value = value;
     ctrl.id = id;
 
-    if (ioctl(s->fd, VIDIOC_S_EXT_CTRLS, &ctrls) < 0)
+    if (ioctl(s->device.fd, VIDIOC_S_EXT_CTRLS, &ctrls) < 0)
         av_log(s->avctx, log_warning || errno != EINVAL ? AV_LOG_WARNING : AV_LOG_DEBUG,
                "Failed to set %s: %s\n", name, strerror(errno));
     else
@@ -85,7 +85,7 @@ static inline int v4l2_get_ext_ctrl(V4L2m2mContext *s, unsigned int id, signed i
     /* set ctrl*/
     ctrl.id = id ;
 
-    ret = ioctl(s->fd, VIDIOC_G_EXT_CTRLS, &ctrls);
+    ret = ioctl(s->device.fd, VIDIOC_G_EXT_CTRLS, &ctrls);
     if (ret < 0) {
         av_log(s->avctx, log_warning || errno != EINVAL ? AV_LOG_WARNING : AV_LOG_DEBUG,
                "Failed to get %s\n", name);
@@ -166,7 +166,7 @@ static inline void v4l2_subscribe_eos_event(V4L2m2mContext *s)
 
     memset(&sub, 0, sizeof(sub));
     sub.type = V4L2_EVENT_EOS;
-    if (ioctl(s->fd, VIDIOC_SUBSCRIBE_EVENT, &sub) < 0)
+    if (ioctl(s->device.fd, VIDIOC_SUBSCRIBE_EVENT, &sub) < 0)
         av_log(s->avctx, AV_LOG_WARNING,
                "the v4l2 driver does not support end of stream VIDIOC_SUBSCRIBE_EVENT\n");
 }
