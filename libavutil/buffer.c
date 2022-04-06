@@ -304,6 +304,13 @@ static void buffer_pool_flush(AVBufferPool *pool)
     }
 }
 
+void av_buffer_pool_flush(AVBufferPool *pool)
+{
+    ff_mutex_lock(&pool->mutex);
+    buffer_pool_flush(pool);
+    ff_mutex_unlock(&pool->mutex);
+}
+
 /*
  * This function gets called when the pool has been uninited and
  * all the buffers returned to it.
